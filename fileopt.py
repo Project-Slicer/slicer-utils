@@ -4,7 +4,6 @@ import sys
 import os
 from typing import Optional, Any, List, Iterable
 from struct import unpack, pack, calcsize
-from dataclasses import dataclass
 from shutil import copyfile
 
 
@@ -28,13 +27,13 @@ O_WRONLY = 0o0001
 O_RDWR = 0o0002
 
 
-@dataclass
 class PlatInfo:
   '''
   A `platinfo` file of a checkpoint.
   '''
 
-  endian: Optional[str] = None
+  def __init__(self) -> None:
+    self.endian: Optional[str] = None
 
   def __check_field(self, field_name: str, value: Any, file: str) -> None:
     field = getattr(self, field_name)
@@ -54,18 +53,10 @@ class PlatInfo:
       self.__check_field('endian', '<' if endian == b'\x00' else '>', file)
 
 
-@dataclass
 class KfdDump:
   '''
   A kfd dump file (`kfd/x`) of a checkpoint.
   '''
-
-  file: str
-  fmt: str
-
-  offset: int
-  flags: int
-  path: str
 
   def __init__(self, platinfo: PlatInfo, file: str) -> None:
     self.file = file
@@ -139,26 +130,37 @@ def collect_kfd_dumps(parent_dir: str) -> Iterable[KfdDump]:
         yield kfd
 
 
+def get_native_path(kfd: KfdDump, path: str) -> str:
+  '''
+  Returns a path that applies to the native OS of the given kfd and path.
+  '''
+  split_kfd_path = kfd.file.split('/')
+  assert split_kfd_path[-3] == 'file' and split_kfd_path[-2] == 'kfd'
+  return os.path.join(*split_kfd_path[:-3], *path.split('/'))
+
+
 def copy_files(parent_dir: str) -> None:
   '''
   Copy files to parent/checkpoint directory.
   '''
-  copied_files = set()
+  copied_files = {}
   kfds: List[KfdDump] = []
   # for each kfd object, copy the associated file to directory
   for kfd in collect_kfd_dumps(parent_dir):
     if kfd.read_only():
-      new_path = f'../{kfd.path.split("/")[-1]}.{len(copied_files)}'
+      id = copied_files.get(kfd.path, len(copied_files))
+      new_path = f'../{kfd.path.split("/")[-1]}.{id}'
       if kfd.path not in copied_files:
-        copyfile(kfd.path, new_path, follow_symlinks=True)
-        copied_files.add(kfd.path)
+        copyfile(kfd.path, get_native_path(kfd, new_path), follow_symlinks=True)
+        copied_files[kfd.path] = id
       kfd.path = new_path
     else:
       new_path = f'file/kfd/{kfd.path.split("/")[-1]}.{kfd.file.split("/")[-1]}'
+      native_path = get_native_path(kfd, new_path)
       if kfd.write_only():
-        open(new_path, 'w').close()
+        open(native_path, 'w').close()
       elif kfd.read_write():
-        copyfile(kfd.path, new_path, follow_symlinks=True)
+        copyfile(kfd.path, native_path, follow_symlinks=True)
       else:
         raise RuntimeError(f'unknown kfd type in "{kfd.file}"')
       kfd.path = new_path
