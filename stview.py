@@ -4,6 +4,13 @@ import sys
 import struct
 
 
+HELP = '''
+System call trace viewer.
+
+  Usage: {prog_name} <strace file>
+'''.strip()
+
+
 STRUCT_FMT = '<7QQ'
 STRUCT_LEN = struct.calcsize(STRUCT_FMT)
 unpack = struct.Struct(STRUCT_FMT).unpack_from
@@ -115,7 +122,7 @@ def print_syscall(data: bytes) -> None:
 
 if __name__ == '__main__':
   if len(sys.argv) != 2:
-    print(f'Usage: {sys.argv[0]} <strace file>')
+    print(HELP.format(prog_name=sys.argv[0]))
     sys.exit(1)
 
   st_file = sys.argv[1]
