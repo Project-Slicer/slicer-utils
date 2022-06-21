@@ -136,7 +136,10 @@ def get_native_path(kfd: KfdDump, path: str) -> str:
   '''
   split_kfd_path = kfd.file.split('/')
   assert split_kfd_path[-3] == 'file' and split_kfd_path[-2] == 'kfd'
-  return os.path.join(*split_kfd_path[:-3], *path.split('/'))
+  p = os.path.join(*split_kfd_path[:-3], *path.split('/'))
+  if kfd.file.startswith('/'):
+    p = os.path.sep + p
+  return p
 
 
 def copy_files(parent_dir: str) -> None:
